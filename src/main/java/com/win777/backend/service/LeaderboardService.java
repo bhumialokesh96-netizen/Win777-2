@@ -64,21 +64,33 @@ public class LeaderboardService {
 
     /**
      * Builds leaderboard entries from query results.
+     * Uses batch fetch to avoid N+1 query problem.
      * 
      * @param results query results containing userId and total earnings
      * @return list of leaderboard entries with ranks
      */
     private List<LeaderboardEntry> buildLeaderboard(List<Object[]> results) {
+        if (results.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // Extract user IDs
+        List<java.util.UUID> userIds = results.stream()
+                .map(result -> (java.util.UUID) result[0])
+                .collect(Collectors.toList());
+        
+        // Batch fetch all users in one query
+        Map<java.util.UUID, String> userIdToUsername = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getUsername));
+        
+        // Build leaderboard entries
         List<LeaderboardEntry> leaderboard = new ArrayList<>();
         int rank = 1;
         
         for (Object[] result : results) {
             java.util.UUID userId = (java.util.UUID) result[0];
             BigDecimal totalEarnings = (BigDecimal) result[1];
-            
-            // Fetch username
-            User user = userRepository.findById(userId).orElse(null);
-            String username = user != null ? user.getUsername() : "Unknown";
+            String username = userIdToUsername.getOrDefault(userId, "Unknown");
             
             LeaderboardEntry entry = new LeaderboardEntry(userId, username, totalEarnings, rank++);
             leaderboard.add(entry);

@@ -44,16 +44,17 @@ public interface WalletLedgerRepository extends JpaRepository<WalletLedger, UUID
     
     /**
      * Finds top earners by period for leaderboard.
+     * Returns a limited number of top earners sorted by total earnings.
      * 
      * @param startDate the start date of the period
-     * @param limit the maximum number of results
      * @return list of user IDs and their total earnings
      */
-    @Query("SELECT w.user.id, SUM(w.amount) as totalEarnings " +
-           "FROM WalletLedger w " +
-           "WHERE w.createdAt >= :startDate AND w.amount > 0 " +
-           "GROUP BY w.user.id " +
-           "ORDER BY totalEarnings DESC")
+    @Query(value = "SELECT w.user_id, SUM(w.amount) as total_earnings " +
+           "FROM wallet_ledger w " +
+           "WHERE w.created_at >= :startDate AND w.amount > 0 " +
+           "GROUP BY w.user_id " +
+           "ORDER BY total_earnings DESC " +
+           "LIMIT :limit", nativeQuery = true)
     List<Object[]> findTopEarnersByPeriod(@Param("startDate") LocalDateTime startDate, 
                                           @Param("limit") int limit);
 }
