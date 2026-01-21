@@ -146,6 +146,38 @@ public class SMSJobService {
     }
 
     /**
+     * Marks an SMS job as failed.
+     * No earnings or referral rewards are distributed for failed jobs.
+     * 
+     * @param userId the ID of the user failing the job
+     * @param jobId the ID of the job to fail
+     * @throws IllegalArgumentException if user or job not found
+     * @throws IllegalStateException if ownership validation fails or job is not in CLAIMED status
+     */
+    @Transactional
+    public void failSmsJob(UUID userId, UUID jobId) {
+        // 1. Fetch user
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        // 2. Fetch SMS job with pessimistic lock for concurrent safety
+        SMSJob smsJob = smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)
+                .orElseThrow(() -> new IllegalStateException("SMS job not found or user does not own this job"));
+
+        // 3. Validate job status - must be CLAIMED
+        if (smsJob.getStatus() != SMSJobStatus.CLAIMED) {
+            throw new IllegalStateException("SMS job must be in CLAIMED status to be marked as failed. Current status: " + smsJob.getStatus());
+        }
+
+        // 4. Update SMS job status to FAILED
+        smsJob.setStatus(SMSJobStatus.FAILED);
+        smsJob.setCompletedAt(null);  // No completion time for failed jobs
+        smsJobRepository.save(smsJob);
+        
+        // Note: No wallet credits or referral rewards for failed jobs
+    }
+
+    /**
      * Distributes referral rewards to up to 3 levels of referrers.
      * Level 1: 10%, Level 2: 2%, Level 3: 1%
      * 
