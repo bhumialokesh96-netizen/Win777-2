@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -42,4 +43,15 @@ public interface SMSJobRepository extends JpaRepository<SMSJob, UUID> {
         List<SMSJob> jobs = findByStatusOrderByCreatedAtAsc(SMSJobStatus.PENDING, PageRequest.of(0, 1));
         return jobs.isEmpty() ? Optional.empty() : Optional.of(jobs.get(0));
     }
+    
+    /**
+     * Finds an SMS job by ID with pessimistic write lock.
+     * This ensures concurrent safety when completing jobs.
+     * 
+     * @param id the job ID
+     * @return Optional containing the locked job, or empty if not found
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT j FROM SMSJob j WHERE j.id = :id")
+    Optional<SMSJob> findByIdWithLock(@Param("id") UUID id);
 }

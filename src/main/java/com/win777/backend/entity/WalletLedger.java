@@ -1,6 +1,6 @@
 package com.win777.backend.entity;
 
-import com.win777.backend.enums.TransactionType;
+import com.win777.backend.enums.LedgerType;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -26,14 +26,10 @@ public class WalletLedger {
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "transaction_type", nullable = false, updatable = false)
-    private TransactionType transactionType;
+    @Column(name = "ledger_type", nullable = false, updatable = false)
+    private LedgerType ledgerType;
 
-    @Column(name = "description", length = 500, updatable = false)
-    private String description;
 
-    @Column(name = "reference_id", updatable = false)
-    private UUID referenceId;
 
     // Immutable ledger - only creation timestamp, no update timestamp
     @CreationTimestamp
@@ -78,28 +74,12 @@ public class WalletLedger {
         this.amount = amount;
     }
 
-    public TransactionType getTransactionType() {
-        return transactionType;
+    public LedgerType getLedgerType() {
+        return ledgerType;
     }
 
-    public void setTransactionType(TransactionType transactionType) {
-        this.transactionType = transactionType;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public UUID getReferenceId() {
-        return referenceId;
-    }
-
-    public void setReferenceId(UUID referenceId) {
-        this.referenceId = referenceId;
+    public void setLedgerType(LedgerType ledgerType) {
+        this.ledgerType = ledgerType;
     }
 
     public LocalDateTime getCreatedAt() {
