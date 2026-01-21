@@ -2,8 +2,6 @@ package com.win777.backend.entity;
 
 import com.win777.backend.enums.TransactionType;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.DecimalMax;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
