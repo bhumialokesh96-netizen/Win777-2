@@ -1,5 +1,6 @@
 package com.win777.backend.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,9 +49,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
-            } catch (Exception e) {
-                // Log exception and continue without authentication
-                logger.error("JWT authentication failed", e);
+            } catch (JwtException | IllegalArgumentException e) {
+                // Log JWT-specific errors and continue without authentication
+                logger.warn("JWT authentication failed: " + e.getMessage());
             }
         }
         

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.UUID;
 
@@ -20,10 +21,10 @@ public class JwtUtil {
     private final SecretKey secretKey;
     private final long jwtExpiration;
 
-    public JwtUtil(@Value("${jwt.secret:Win777SecretKeyForJWTTokenGenerationAndValidation2024}") String secret,
+    public JwtUtil(@Value("${jwt.secret}") String secret,
                    @Value("${jwt.expiration:86400000}") long jwtExpiration) {
         // Generate a secure key from the secret string
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.jwtExpiration = jwtExpiration; // Default: 24 hours in milliseconds
     }
 

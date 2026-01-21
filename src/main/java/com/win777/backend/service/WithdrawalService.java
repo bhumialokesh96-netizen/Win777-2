@@ -75,7 +75,9 @@ public class WithdrawalService {
         // Save withdrawal
         withdrawal = withdrawalRepository.save(withdrawal);
 
-        // Create debit ledger entry
+        // Create debit ledger entry immediately to lock funds
+        // This prevents double-spending while the withdrawal is pending
+        // If the withdrawal is rejected, an admin will need to create a credit entry
         WalletLedger debit = new WalletLedger();
         debit.setUser(user);
         debit.setAmount(amount.negate()); // Negative amount for debit
