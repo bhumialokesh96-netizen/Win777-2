@@ -3,7 +3,9 @@ package com.win777.backend.repository;
 import com.win777.backend.entity.SMSJob;
 import com.win777.backend.enums.SMSJobStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -54,4 +56,13 @@ public interface SMSJobRepository extends JpaRepository<SMSJob, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT j FROM SMSJob j WHERE j.id = :id AND j.user.id = :userId")
     Optional<SMSJob> findByIdAndUserIdWithLock(UUID id, UUID userId);
+    
+    /**
+     * Finds all SMS jobs for a user, ordered by creation date descending.
+     * 
+     * @param userId the user ID
+     * @param pageable pagination parameters
+     * @return page of SMS jobs
+     */
+    Page<SMSJob> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 }

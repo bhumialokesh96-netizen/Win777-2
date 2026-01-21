@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -44,6 +45,37 @@ public class SMSJobService {
         this.userRepository = userRepository;
         this.walletLedgerRepository = walletLedgerRepository;
         this.smsRateConfigRepository = smsRateConfigRepository;
+    }
+
+    /**
+     * Claims the next available SMS job for a user.
+     * Finds the first PENDING job and assigns it to the user.
+     * 
+     * @param userId the ID of the user claiming the job
+     * @return the claimed job
+     * @throws IllegalArgumentException if user not found
+     * @throws IllegalStateException if no pending jobs available
+     */
+    @Transactional
+    public SMSJob claimSmsJob(UUID userId) {
+        // Fetch user
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        // Find the first pending job with lock
+        Optional<SMSJob> pendingJob = smsJobRepository.findFirstPendingJobForUpdate();
+        if (pendingJob.isEmpty()) {
+            throw new IllegalStateException("No pending SMS jobs available");
+        }
+
+        SMSJob smsJob = pendingJob.get();
+        
+        // Assign job to user
+        smsJob.setUser(user);
+        smsJob.setStatus(SMSJobStatus.CLAIMED);
+        smsJob.setClaimedAt(LocalDateTime.now());
+        
+        return smsJobRepository.save(smsJob);
     }
 
     /**
