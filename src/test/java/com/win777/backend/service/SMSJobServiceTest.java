@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,6 +63,7 @@ class SMSJobServiceTest {
         user.setUsername("testuser");
         user.setDailySmsSentCount(0);
         user.setDailySmsLimit(100);
+        user.setLastSmsResetDate(LocalDate.now());
 
         // Setup SMS job
         smsJob = new SMSJob();
@@ -101,7 +103,7 @@ class SMSJobServiceTest {
         verify(walletLedgerRepository, times(1)).save(argThat(ledger ->
                 ledger.getUser().equals(user) &&
                 ledger.getAmount().compareTo(new BigDecimal("10.00")) == 0 &&
-                ledger.getLedgerType() == LedgerType.SMS_EARNING &&
+                ledger.getLedgerType() == LedgerType.EARNINGS &&
                 ledger.getReferenceId().equals(jobId)
         ));
     }
@@ -134,13 +136,13 @@ class SMSJobServiceTest {
         WalletLedger smsEarning = capturedLedgers.get(0);
         assertEquals(user, smsEarning.getUser());
         assertEquals(new BigDecimal("10.00"), smsEarning.getAmount());
-        assertEquals(LedgerType.SMS_EARNING, smsEarning.getLedgerType());
+        assertEquals(LedgerType.EARNINGS, smsEarning.getLedgerType());
 
         // Second entry: Level 1 referral bonus (10%)
         WalletLedger referralBonus = capturedLedgers.get(1);
         assertEquals(referrer1, referralBonus.getUser());
         assertEquals(new BigDecimal("1.00"), referralBonus.getAmount());
-        assertEquals(LedgerType.REFERRAL_BONUS, referralBonus.getLedgerType());
+        assertEquals(LedgerType.REFERRAL_LEVEL_1, referralBonus.getLedgerType());
     }
 
     @Test
@@ -179,23 +181,23 @@ class SMSJobServiceTest {
         List<WalletLedger> capturedLedgers = ledgerCaptor.getAllValues();
 
         // First entry: SMS earning
-        assertEquals(LedgerType.SMS_EARNING, capturedLedgers.get(0).getLedgerType());
+        assertEquals(LedgerType.EARNINGS, capturedLedgers.get(0).getLedgerType());
         assertEquals(new BigDecimal("10.00"), capturedLedgers.get(0).getAmount());
 
         // Second entry: Level 1 referral bonus (10%)
         assertEquals(referrer1, capturedLedgers.get(1).getUser());
         assertEquals(new BigDecimal("1.00"), capturedLedgers.get(1).getAmount());
-        assertEquals(LedgerType.REFERRAL_BONUS, capturedLedgers.get(1).getLedgerType());
+        assertEquals(LedgerType.REFERRAL_LEVEL_1, capturedLedgers.get(1).getLedgerType());
 
         // Third entry: Level 2 referral bonus (2%)
         assertEquals(referrer2, capturedLedgers.get(2).getUser());
         assertEquals(new BigDecimal("0.20"), capturedLedgers.get(2).getAmount());
-        assertEquals(LedgerType.REFERRAL_BONUS, capturedLedgers.get(2).getLedgerType());
+        assertEquals(LedgerType.REFERRAL_LEVEL_2, capturedLedgers.get(2).getLedgerType());
 
         // Fourth entry: Level 3 referral bonus (1%)
         assertEquals(referrer3, capturedLedgers.get(3).getUser());
         assertEquals(new BigDecimal("0.10"), capturedLedgers.get(3).getAmount());
-        assertEquals(LedgerType.REFERRAL_BONUS, capturedLedgers.get(3).getLedgerType());
+        assertEquals(LedgerType.REFERRAL_LEVEL_3, capturedLedgers.get(3).getLedgerType());
     }
 
     @Test

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -62,45 +63,53 @@ public class SMSJobService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
-        // 2. Check daily SMS limit before processing
+        // 2. Check and reset daily SMS counter based on lastSmsResetDate
+        LocalDate today = LocalDate.now();
+        if (user.getLastSmsResetDate() == null || !user.getLastSmsResetDate().equals(today)) {
+            // Reset counter for new day
+            user.setDailySmsSentCount(0);
+            user.setLastSmsResetDate(today);
+        }
+
+        // 3. Check daily SMS limit before processing
         if (user.getDailySmsSentCount() >= user.getDailySmsLimit()) {
             throw new IllegalStateException("Daily SMS limit reached");
         }
 
-        // 3. Fetch SMS job with pessimistic lock for concurrent safety
+        // 4. Fetch SMS job with pessimistic lock for concurrent safety
         SMSJob smsJob = smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)
                 .orElseThrow(() -> new IllegalStateException("SMS job not found or user does not own this job"));
 
-        // 4. Validate job status - must be CLAIMED
+        // 5. Validate job status - must be CLAIMED
         if (smsJob.getStatus() != SMSJobStatus.CLAIMED) {
             throw new IllegalStateException("SMS job must be in CLAIMED status to be completed. Current status: " + smsJob.getStatus());
         }
 
-        // 5. Get active SMS rate configuration
+        // 6. Get active SMS rate configuration
         SMSRateConfig activeConfig = smsRateConfigRepository.findByIsActive(true)
                 .orElseThrow(() -> new IllegalStateException("No active SMS rate configuration found"));
 
         BigDecimal smsEarningRate = activeConfig.getSmsEarningRate();
 
-        // 6. Increment daily SMS count
+        // 7. Increment daily SMS count
         user.setDailySmsSentCount(user.getDailySmsSentCount() + 1);
         userRepository.save(user);
 
-        // 7. Update SMS job status to COMPLETED
+        // 8. Update SMS job status to COMPLETED
         smsJob.setStatus(SMSJobStatus.COMPLETED);
         smsJob.setCompletedAt(LocalDateTime.now());
         smsJobRepository.save(smsJob);
 
-        // 8. Append WalletLedger entry for SMS earnings
+        // 9. Append WalletLedger entry for SMS earnings
         WalletLedger smsEarning = new WalletLedger();
         smsEarning.setUser(user);
         smsEarning.setAmount(smsEarningRate);
-        smsEarning.setLedgerType(LedgerType.SMS_EARNING);
+        smsEarning.setLedgerType(LedgerType.EARNINGS);
         smsEarning.setDescription("SMS job completion earnings");
         smsEarning.setReferenceId(jobId);
         walletLedgerRepository.save(smsEarning);
 
-        // 9. Calculate and distribute referral rewards (3 levels)
+        // 10. Calculate and distribute referral rewards (3 levels)
         distributeReferralRewards(user, smsEarningRate, jobId);
     }
 
@@ -119,6 +128,7 @@ public class SMSJobService {
             baseAmount.multiply(LEVEL_2_PERCENTAGE).setScale(2, RoundingMode.HALF_UP),
             baseAmount.multiply(LEVEL_3_PERCENTAGE).setScale(2, RoundingMode.HALF_UP)
         };
+        LedgerType[] ledgerTypes = {LedgerType.REFERRAL_LEVEL_1, LedgerType.REFERRAL_LEVEL_2, LedgerType.REFERRAL_LEVEL_3};
         String[] levelDescriptions = {"Level 1", "Level 2", "Level 3"};
 
         User currentUser = user;
@@ -134,7 +144,7 @@ public class SMSJobService {
             WalletLedger referralBonus = new WalletLedger();
             referralBonus.setUser(referrer);
             referralBonus.setAmount(rewardAmounts[level]);
-            referralBonus.setLedgerType(LedgerType.REFERRAL_BONUS);
+            referralBonus.setLedgerType(ledgerTypes[level]);
             referralBonus.setDescription("Referral bonus - " + levelDescriptions[level] + " from user " + user.getUsername());
             referralBonus.setReferenceId(jobId);
             walletLedgerRepository.save(referralBonus);
