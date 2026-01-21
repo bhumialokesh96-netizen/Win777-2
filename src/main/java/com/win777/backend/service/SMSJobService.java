@@ -108,10 +108,15 @@ public class SMSJobService {
      * @param jobId the job ID for reference
      */
     private void distributeReferralRewards(User user, BigDecimal baseAmount, UUID jobId) {
-        User currentUser = user;
-        BigDecimal[] percentages = {LEVEL_1_PERCENTAGE, LEVEL_2_PERCENTAGE, LEVEL_3_PERCENTAGE};
+        // Pre-calculate reward amounts for all levels
+        BigDecimal[] rewardAmounts = {
+            baseAmount.multiply(LEVEL_1_PERCENTAGE).setScale(2, RoundingMode.HALF_UP),
+            baseAmount.multiply(LEVEL_2_PERCENTAGE).setScale(2, RoundingMode.HALF_UP),
+            baseAmount.multiply(LEVEL_3_PERCENTAGE).setScale(2, RoundingMode.HALF_UP)
+        };
         String[] levelDescriptions = {"Level 1", "Level 2", "Level 3"};
 
+        User currentUser = user;
         for (int level = 0; level < 3; level++) {
             // Get referrer
             User referrer = currentUser.getReferrer();
@@ -120,14 +125,10 @@ public class SMSJobService {
                 break;
             }
 
-            // Calculate referral reward
-            BigDecimal rewardAmount = baseAmount.multiply(percentages[level])
-                    .setScale(2, RoundingMode.HALF_UP);
-
             // Append WalletLedger entry for referral bonus
             WalletLedger referralBonus = new WalletLedger();
             referralBonus.setUser(referrer);
-            referralBonus.setAmount(rewardAmount);
+            referralBonus.setAmount(rewardAmounts[level]);
             referralBonus.setTransactionType(TransactionType.REFERRAL_BONUS);
             referralBonus.setDescription("Referral bonus - " + levelDescriptions[level] + " from user " + user.getUsername());
             referralBonus.setReferenceId(jobId);
