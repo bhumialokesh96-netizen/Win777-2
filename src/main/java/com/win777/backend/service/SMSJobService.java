@@ -57,6 +57,11 @@ public class SMSJobService {
             throw new IllegalStateException("SMS job is not in CLAIMED status: " + jobId);
         }
 
+        // Validate job has a user assigned
+        if (job.getUser() == null) {
+            throw new IllegalStateException("SMS job has no user assigned: " + jobId);
+        }
+
         // Fetch user with pessimistic lock
         User user = userRepository.findByIdWithLock(job.getUser().getId())
                 .orElseThrow(() -> new IllegalStateException("User not found: " + job.getUser().getId()));
