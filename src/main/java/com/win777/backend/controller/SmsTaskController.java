@@ -71,4 +71,24 @@ public class SmsTaskController {
 
         return ResponseEntity.ok("Job completed successfully");
     }
+
+    /**
+     * Marks an SMS job as failed for the authenticated user.
+     * No wallet credit is given for failed jobs.
+     * 
+     * @param request the complete job request (reused for jobId)
+     * @param authentication the authentication object containing userId
+     * @return success message
+     */
+    @PostMapping("/fail")
+    public ResponseEntity<String> failJob(@Valid @RequestBody CompleteJobRequest request, 
+                                         Authentication authentication) {
+        // Extract userId from JWT token
+        UUID userId = (UUID) authentication.getPrincipal();
+
+        // Mark job as failed
+        smsJobService.failSmsJob(userId, request.getJobId());
+
+        return ResponseEntity.ok("Job marked as failed");
+    }
 }
