@@ -4,8 +4,8 @@ import com.win777.backend.entity.SMSJob;
 import com.win777.backend.entity.SMSRateConfig;
 import com.win777.backend.entity.User;
 import com.win777.backend.entity.WalletLedger;
+import com.win777.backend.enums.LedgerType;
 import com.win777.backend.enums.SMSJobStatus;
-import com.win777.backend.enums.TransactionType;
 import com.win777.backend.repository.SMSJobRepository;
 import com.win777.backend.repository.SMSRateConfigRepository;
 import com.win777.backend.repository.UserRepository;
@@ -60,6 +60,8 @@ class SMSJobServiceTest {
         user = new User();
         user.setId(userId);
         user.setUsername("testuser");
+        user.setDailySmsSentCount(0);
+        user.setDailySmsLimit(100);
 
         // Setup SMS job
         smsJob = new SMSJob();
@@ -77,9 +79,10 @@ class SMSJobServiceTest {
     void testCompleteSmsJob_Success_NoReferrals() {
         // Arrange
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.of(smsJob));
         when(smsRateConfigRepository.findByIsActive(true)).thenReturn(Optional.of(rateConfig));
         when(smsJobRepository.save(any(SMSJob.class))).thenReturn(smsJob);
+        when(userRepository.save(any(User.class))).thenReturn(user);
         when(walletLedgerRepository.save(any(WalletLedger.class))).thenReturn(new WalletLedger());
 
         // Act
@@ -91,10 +94,14 @@ class SMSJobServiceTest {
                 job.getCompletedAt() != null
         ));
 
+        verify(userRepository).save(argThat(u ->
+                u.getDailySmsSentCount() == 1
+        ));
+
         verify(walletLedgerRepository, times(1)).save(argThat(ledger ->
                 ledger.getUser().equals(user) &&
                 ledger.getAmount().compareTo(new BigDecimal("10.00")) == 0 &&
-                ledger.getTransactionType() == TransactionType.SMS_EARNING &&
+                ledger.getLedgerType() == LedgerType.SMS_EARNING &&
                 ledger.getReferenceId().equals(jobId)
         ));
     }
@@ -108,9 +115,10 @@ class SMSJobServiceTest {
         user.setReferrer(referrer1);
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.of(smsJob));
         when(smsRateConfigRepository.findByIsActive(true)).thenReturn(Optional.of(rateConfig));
         when(smsJobRepository.save(any(SMSJob.class))).thenReturn(smsJob);
+        when(userRepository.save(any(User.class))).thenReturn(user);
         when(walletLedgerRepository.save(any(WalletLedger.class))).thenReturn(new WalletLedger());
 
         // Act
@@ -126,13 +134,13 @@ class SMSJobServiceTest {
         WalletLedger smsEarning = capturedLedgers.get(0);
         assertEquals(user, smsEarning.getUser());
         assertEquals(new BigDecimal("10.00"), smsEarning.getAmount());
-        assertEquals(TransactionType.SMS_EARNING, smsEarning.getTransactionType());
+        assertEquals(LedgerType.SMS_EARNING, smsEarning.getLedgerType());
 
         // Second entry: Level 1 referral bonus (10%)
         WalletLedger referralBonus = capturedLedgers.get(1);
         assertEquals(referrer1, referralBonus.getUser());
         assertEquals(new BigDecimal("1.00"), referralBonus.getAmount());
-        assertEquals(TransactionType.REFERRAL_BONUS, referralBonus.getTransactionType());
+        assertEquals(LedgerType.REFERRAL_BONUS, referralBonus.getLedgerType());
     }
 
     @Test
@@ -155,9 +163,10 @@ class SMSJobServiceTest {
         referrer2.setReferrer(referrer3);
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.of(smsJob));
         when(smsRateConfigRepository.findByIsActive(true)).thenReturn(Optional.of(rateConfig));
         when(smsJobRepository.save(any(SMSJob.class))).thenReturn(smsJob);
+        when(userRepository.save(any(User.class))).thenReturn(user);
         when(walletLedgerRepository.save(any(WalletLedger.class))).thenReturn(new WalletLedger());
 
         // Act
@@ -170,23 +179,23 @@ class SMSJobServiceTest {
         List<WalletLedger> capturedLedgers = ledgerCaptor.getAllValues();
 
         // First entry: SMS earning
-        assertEquals(TransactionType.SMS_EARNING, capturedLedgers.get(0).getTransactionType());
+        assertEquals(LedgerType.SMS_EARNING, capturedLedgers.get(0).getLedgerType());
         assertEquals(new BigDecimal("10.00"), capturedLedgers.get(0).getAmount());
 
         // Second entry: Level 1 referral bonus (10%)
         assertEquals(referrer1, capturedLedgers.get(1).getUser());
         assertEquals(new BigDecimal("1.00"), capturedLedgers.get(1).getAmount());
-        assertEquals(TransactionType.REFERRAL_BONUS, capturedLedgers.get(1).getTransactionType());
+        assertEquals(LedgerType.REFERRAL_BONUS, capturedLedgers.get(1).getLedgerType());
 
         // Third entry: Level 2 referral bonus (2%)
         assertEquals(referrer2, capturedLedgers.get(2).getUser());
         assertEquals(new BigDecimal("0.20"), capturedLedgers.get(2).getAmount());
-        assertEquals(TransactionType.REFERRAL_BONUS, capturedLedgers.get(2).getTransactionType());
+        assertEquals(LedgerType.REFERRAL_BONUS, capturedLedgers.get(2).getLedgerType());
 
         // Fourth entry: Level 3 referral bonus (1%)
         assertEquals(referrer3, capturedLedgers.get(3).getUser());
         assertEquals(new BigDecimal("0.10"), capturedLedgers.get(3).getAmount());
-        assertEquals(TransactionType.REFERRAL_BONUS, capturedLedgers.get(3).getTransactionType());
+        assertEquals(LedgerType.REFERRAL_BONUS, capturedLedgers.get(3).getLedgerType());
     }
 
     @Test
@@ -208,14 +217,14 @@ class SMSJobServiceTest {
     void testCompleteSmsJob_ThrowsException_JobNotFound() {
         // Arrange
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.empty());
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
                 smsJobService.completeSmsJob(userId, jobId)
         );
 
-        assertEquals("SMS job not found with id: " + jobId, exception.getMessage());
+        assertEquals("SMS job not found or user does not own this job", exception.getMessage());
         verify(smsJobRepository, never()).save(any());
         verify(walletLedgerRepository, never()).save(any());
     }
@@ -223,19 +232,15 @@ class SMSJobServiceTest {
     @Test
     void testCompleteSmsJob_ThrowsException_OwnershipValidationFails() {
         // Arrange
-        User differentUser = new User();
-        differentUser.setId(UUID.randomUUID());
-        smsJob.setUser(differentUser);
-
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.empty());
 
         // Act & Assert
         IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
                 smsJobService.completeSmsJob(userId, jobId)
         );
 
-        assertEquals("User does not own this SMS job", exception.getMessage());
+        assertEquals("SMS job not found or user does not own this job", exception.getMessage());
         verify(smsJobRepository, never()).save(any());
         verify(walletLedgerRepository, never()).save(any());
     }
@@ -246,7 +251,7 @@ class SMSJobServiceTest {
         smsJob.setStatus(SMSJobStatus.PENDING);
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.of(smsJob));
 
         // Act & Assert
         IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
@@ -262,7 +267,7 @@ class SMSJobServiceTest {
     void testCompleteSmsJob_ThrowsException_NoActiveRateConfig() {
         // Arrange
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.of(smsJob));
         when(smsRateConfigRepository.findByIsActive(true)).thenReturn(Optional.empty());
 
         // Act & Assert
@@ -276,19 +281,36 @@ class SMSJobServiceTest {
     }
 
     @Test
-    void testCompleteSmsJob_ThrowsException_JobUserIsNull() {
+    void testCompleteSmsJob_ThrowsException_DailyLimitReached() {
         // Arrange
-        smsJob.setUser(null);
+        user.setDailySmsSentCount(100);
+        user.setDailySmsLimit(100);
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(smsJobRepository.findById(jobId)).thenReturn(Optional.of(smsJob));
 
         // Act & Assert
         IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
                 smsJobService.completeSmsJob(userId, jobId)
         );
 
-        assertEquals("User does not own this SMS job", exception.getMessage());
+        assertTrue(exception.getMessage().contains("Daily SMS limit reached"));
+        verify(smsJobRepository, never()).save(any());
+        verify(walletLedgerRepository, never()).save(any());
+    }
+
+    @Test
+    void testCompleteSmsJob_ThrowsException_JobUserIsNull() {
+        // This test is no longer relevant as findByIdAndUserIdWithLock handles ownership
+        // Arrange
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+                smsJobService.completeSmsJob(userId, jobId)
+        );
+
+        assertEquals("SMS job not found or user does not own this job", exception.getMessage());
         verify(smsJobRepository, never()).save(any());
         verify(walletLedgerRepository, never()).save(any());
     }

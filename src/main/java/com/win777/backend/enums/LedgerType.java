@@ -1,0 +1,9 @@
+package com.win777.backend.enums;
+
+public enum LedgerType {
+    SMS_EARNING,
+    REFERRAL_BONUS,
+    WITHDRAWAL,
+    ADMIN_CREDIT,
+    ADMIN_DEBIT
+}

@@ -4,8 +4,8 @@ import com.win777.backend.entity.SMSJob;
 import com.win777.backend.entity.SMSRateConfig;
 import com.win777.backend.entity.User;
 import com.win777.backend.entity.WalletLedger;
+import com.win777.backend.enums.LedgerType;
 import com.win777.backend.enums.SMSJobStatus;
-import com.win777.backend.enums.TransactionType;
 import com.win777.backend.repository.SMSJobRepository;
 import com.win777.backend.repository.SMSRateConfigRepository;
 import com.win777.backend.repository.UserRepository;
@@ -48,12 +48,13 @@ public class SMSJobService {
     /**
      * Completes an SMS job with transactional integrity.
      * Validates ownership, updates job status, credits earnings, and distributes referral rewards.
+     * Enforces daily SMS limits.
      * 
      * @param userId the ID of the user completing the job
      * @param jobId the ID of the job to complete
      * @throws IllegalArgumentException if user or job not found
-     * @throws IllegalStateException if ownership validation fails or job is not in CLAIMED status
-     * @throws IllegalStateException if no active SMS rate configuration is found
+     * @throws IllegalStateException if ownership validation fails, job is not in CLAIMED status, 
+     *                               daily SMS limit reached, or no active SMS rate configuration is found
      */
     @Transactional
     public void completeSmsJob(UUID userId, UUID jobId) {
@@ -61,14 +62,15 @@ public class SMSJobService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
-        // 2. Fetch SMS job
-        SMSJob smsJob = smsJobRepository.findById(jobId)
-                .orElseThrow(() -> new IllegalArgumentException("SMS job not found with id: " + jobId));
-
-        // 3. Validate ownership - ensure the user completing the job is the one who claimed it
-        if (smsJob.getUser() == null || !smsJob.getUser().getId().equals(userId)) {
-            throw new IllegalStateException("User does not own this SMS job");
+        // 2. Check daily SMS limit before processing
+        if (user.getDailySmsSentCount() >= user.getDailySmsLimit()) {
+            throw new IllegalStateException("Daily SMS limit reached. User has sent " + 
+                    user.getDailySmsSentCount() + " of " + user.getDailySmsLimit() + " allowed SMS");
         }
+
+        // 3. Fetch SMS job with pessimistic lock for concurrent safety
+        SMSJob smsJob = smsJobRepository.findByIdAndUserIdWithLock(jobId, userId)
+                .orElseThrow(() -> new IllegalStateException("SMS job not found or user does not own this job"));
 
         // 4. Validate job status - must be CLAIMED
         if (smsJob.getStatus() != SMSJobStatus.CLAIMED) {
@@ -86,16 +88,20 @@ public class SMSJobService {
         smsJob.setCompletedAt(LocalDateTime.now());
         smsJobRepository.save(smsJob);
 
-        // 7. Append WalletLedger entry for SMS earnings
+        // 7. Increment daily SMS count
+        user.setDailySmsSentCount(user.getDailySmsSentCount() + 1);
+        userRepository.save(user);
+
+        // 8. Append WalletLedger entry for SMS earnings
         WalletLedger smsEarning = new WalletLedger();
         smsEarning.setUser(user);
         smsEarning.setAmount(smsEarningRate);
-        smsEarning.setTransactionType(TransactionType.SMS_EARNING);
+        smsEarning.setLedgerType(LedgerType.SMS_EARNING);
         smsEarning.setDescription("SMS job completion earnings");
         smsEarning.setReferenceId(jobId);
         walletLedgerRepository.save(smsEarning);
 
-        // 8. Calculate and distribute referral rewards (3 levels)
+        // 9. Calculate and distribute referral rewards (3 levels)
         distributeReferralRewards(user, smsEarningRate, jobId);
     }
 
@@ -129,7 +135,7 @@ public class SMSJobService {
             WalletLedger referralBonus = new WalletLedger();
             referralBonus.setUser(referrer);
             referralBonus.setAmount(rewardAmounts[level]);
-            referralBonus.setTransactionType(TransactionType.REFERRAL_BONUS);
+            referralBonus.setLedgerType(LedgerType.REFERRAL_BONUS);
             referralBonus.setDescription("Referral bonus - " + levelDescriptions[level] + " from user " + user.getUsername());
             referralBonus.setReferenceId(jobId);
             walletLedgerRepository.save(referralBonus);

@@ -42,4 +42,16 @@ public interface SMSJobRepository extends JpaRepository<SMSJob, UUID> {
         List<SMSJob> jobs = findByStatusOrderByCreatedAtAsc(SMSJobStatus.PENDING, PageRequest.of(0, 1));
         return jobs.isEmpty() ? Optional.empty() : Optional.of(jobs.get(0));
     }
+    
+    /**
+     * Finds an SMS job by ID and user with pessimistic write locking.
+     * This ensures exclusive access when completing jobs in a concurrent environment.
+     * 
+     * @param id the job ID
+     * @param userId the user ID
+     * @return Optional containing the job if found and owned by user, or empty otherwise
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT j FROM SMSJob j WHERE j.id = :id AND j.user.id = :userId")
+    Optional<SMSJob> findByIdAndUserIdWithLock(UUID id, UUID userId);
 }
