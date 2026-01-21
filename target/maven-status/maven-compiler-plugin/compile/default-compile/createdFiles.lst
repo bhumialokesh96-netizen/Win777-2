@@ -1,8 +1,0 @@
-com/win777/backend/entity/SMSJob.class
-com/win777/backend/enums/TransactionType.class
-com/win777/backend/enums/SMSJobStatus.class
-com/win777/backend/entity/SMSRateConfig.class
-com/win777/backend/entity/User.class
-com/win777/backend/entity/WalletLedger.class
-com/win777/backend/entity/Withdrawal.class
-com/win777/backend/enums/WithdrawalStatus.class
