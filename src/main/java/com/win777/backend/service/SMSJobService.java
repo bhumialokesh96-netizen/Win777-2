@@ -64,8 +64,7 @@ public class SMSJobService {
 
         // 2. Check daily SMS limit before processing
         if (user.getDailySmsSentCount() >= user.getDailySmsLimit()) {
-            throw new IllegalStateException("Daily SMS limit reached. User has sent " + 
-                    user.getDailySmsSentCount() + " of " + user.getDailySmsLimit() + " allowed SMS");
+            throw new IllegalStateException("Daily SMS limit reached");
         }
 
         // 3. Fetch SMS job with pessimistic lock for concurrent safety
@@ -83,14 +82,14 @@ public class SMSJobService {
 
         BigDecimal smsEarningRate = activeConfig.getSmsEarningRate();
 
-        // 6. Update SMS job status to COMPLETED
+        // 6. Increment daily SMS count
+        user.setDailySmsSentCount(user.getDailySmsSentCount() + 1);
+        userRepository.save(user);
+
+        // 7. Update SMS job status to COMPLETED
         smsJob.setStatus(SMSJobStatus.COMPLETED);
         smsJob.setCompletedAt(LocalDateTime.now());
         smsJobRepository.save(smsJob);
-
-        // 7. Increment daily SMS count
-        user.setDailySmsSentCount(user.getDailySmsSentCount() + 1);
-        userRepository.save(user);
 
         // 8. Append WalletLedger entry for SMS earnings
         WalletLedger smsEarning = new WalletLedger();
